@@ -1,178 +1,154 @@
 <template>
-  <div class="flow-layout">
-    <div class="flow-editor">
-      <div class="flow-tools">
-        <el-tooltip class="item" effect="dark" content="手动排列" placement="top-start">
-          <div class="tool-item" title="" @click="handleSort">
-            <span class="icon-duiqi"></span>
-          </div>
-        </el-tooltip>
-        <el-tooltip class="item" effect="dark" content="自动排列" placement="top-start">
-          <div class="tool-item" @click="handleToggleAutoSort">
-            <span :class="toggleSortClass"></span>
-          </div>
-        </el-tooltip>
-        <el-tooltip class="item" effect="dark" content="撤销" placement="top-start">
-          <div class="tool-item" @click="handleUndo">
-            <span class="icon-undo" :class="{'icon-undo-disabled':!canUndo}"></span>
-          </div>
-        </el-tooltip>
-        <el-tooltip class="item" effect="dark" content="重做" placement="top-start">
-          <div class="tool-item" @click="handleClear">
-            <span class="icon-redo"></span>
-          </div>
-        </el-tooltip>
-        <el-tooltip class="item" effect="dark" content="获取JSON数据" placement="top-start">
-          <div class="tool-item" @click="handleGetData">
-            <span class="icon-json"></span>
-          </div>
-        </el-tooltip>
-        <el-tooltip class="item" effect="dark" content="网格" placement="top-start">
-          <div class="tool-item" @click="toggleGridLine = !toggleGridLine">
-            <span :class="toggleGridLineClass"></span>
-          </div>
-        </el-tooltip>
-      </div>
-      <!--zoom-->
-      <div class="flow-zoom" :data-zoom="canvasDataRoom + '%'">
-        <div class="zoom-btn">
-          <el-button size="mini" :class="{'el-button--primary':canvasRoomMinusEnable}" icon="el-icon-minus"
-                     circle
-                     @click="handleMinusCanvas"></el-button>
-        </div>
-        <div class="zoom-btn">
-          <el-button size="mini" :class="{'el-button--primary':canvasRoomPlusEnable}" icon="el-icon-plus"
-                     circle
-                     @click="handlePlusCanvas"></el-button>
-        </div>
-      </div>
-      <!--    canvas   -->
-      <div class="canvas-container"
-           :style="canvasRoomCursorStyle"
-           :class="{'show-grid':toggleGridLine}"
-           @mousemove="handleCanvasMouseMove"
-           @mousedown="handleCanvasMouseDown"
-           :data-zoom="canvasDataRoom">
-        <div id="campaignCanvas" :style="canvasRoomScaleStyle" ref="campaignCanvas">
-          <template v-for="(flowItem,index) in flowList">
-            <div class="node-content-wrap"
-                 :key="flowItem.uuid"
-                 @mousedown="handleFlowMoveDown"
-                 @mouseup="(event)=>{handleChangeFlowPosition(flowItem,event)}"
-                 :id="flowItem.uuid"
-                 @click.stop="(event)=>{handleEditFlowItem(flowItem,event)}"
-                 :style="{left:flowItem.left+'px',top:flowItem.top+'px'}">
-              <div class="node-content">
-                <draggable class="node-temp-small" :ref="flowItem.uuid"
-                           :group="{name:'sortable', pull:false, put: true }">
-                </draggable>
-                <template v-if="flowItem.groupType === flowTypeConstant.action">
-                  <div class="flow-item node">
-                    <div class="step-img" :class="flowItem.className"></div>
-                    <div class="step-title">{{ flowItem.name }}</div>
+
+  <el-container>
+    <el-header align="center">
+      <el-button-group>
+        <el-button type="primary" icon="el-icon-edit" @click="handleSort">手动排列</el-button>
+        <el-button type="primary" icon="el-icon-share" @click="handleToggleAutoSort">自动排列</el-button>
+        <el-button type="primary" icon="el-icon-delete" @click="handleUndo"  :disabled="!canUndo">撤销</el-button>
+        <el-button type="primary" icon="el-icon-delete" @click="handleClear">重做</el-button>
+        <el-button type="primary" icon="el-icon-delete" @click="handleGetData">获取JSON数据</el-button>
+        <el-button type="primary" icon="el-icon-delete" @click="toggleGridLine = !toggleGridLine">背景网格</el-button>
+        <el-button type="primary" icon="el-icon-delete" @click="handleMinusCanvas">缩小</el-button>
+        <el-button type="primary" icon="el-icon-delete" @click="handlePlusCanvas">放大</el-button>
+      </el-button-group>
+
+    </el-header>
+    <el-container>
+      <el-aside class="flow-node">
+        <div class="flow-editor-sidebar">
+          <template v-for="(flowItem,index) in flowAllList">
+            <draggable class="items-box"
+                       :key="index"
+                       :list="flowItem.children"
+                       :group="{name:'sortable', pull: 'clone', put: false }"
+                       v-bind="dragConfig"
+                       :move="handleFlowMoveItem"
+                       @start="handleFlowMoveStart"
+                       @end="handleFlowMoveEnd"
+                       :sort="false"
+                       :ref="flowItem.ref">
+              <template v-for="(item,index) in flowItem.children">
+                <template v-if="flowItem.type === flowTypeConstant.action">
+                  <div class="node" :key="index" :title="item.name" :data-id="item.id"
+                       :data-type="item.type"
+                       :data-group="item.groupType"
+                       v-if="!item.hidden">
+                    <div class="step-img" :class="item.className"></div>
+                    <div class="step-title">{{ item.name }}</div>
                   </div>
-                  <!--flow text-->
-                  <div class="flow-text">
-                    <div class="text-line">
-                      <span>{{ flowItem.formData && flowItem.formData.stepName }}</span>
-                      <i class="el-icon-close flow-delete"
-                         @click.stop="handleDeleteFlowItem(flowItem)"></i>
-                    </div>
-                  </div>
-                  <!--    -->
                 </template>
-                <template v-else-if="flowItem.groupType === flowTypeConstant.condition">
-                  <div class="flow-item node-square">
+                <template v-else-if="flowItem.type === flowTypeConstant.flow">
+                  <div class="node node-circle" :key="index" :title="item.name" :data-id="item.id"
+                       :data-type="item.type"
+                       :data-group="item.groupType"
+                       v-if="!item.hidden">
+                    <div class="step-img" :class="item.className"></div>
+                  </div>
+                </template>
+                <template v-else-if="flowItem.type === flowTypeConstant.condition">
+                  <div class="node-square" :key="index" :title="item.name" :data-id="item.id"
+                       :data-type="item.type"
+                       :data-group="item.groupType"
+                       v-if="!item.hidden">
                     <div class="square">
-                      <div class="step-img" :class="flowItem.className"></div>
+                      <div class="step-img" :class="item.className"></div>
                     </div>
                   </div>
-                  <div class="flow-text">
-                    <div class="text-line">
-                      <span>{{ flowItem.formData && flowItem.formData.stepName }}</span>
-                      <i class="el-icon-close flow-delete"
-                         @click.stop="handleDeleteFlowItem(flowItem)"></i>
-                    </div>
-                    <div class="text-line1">
-                      <template v-if="flowItem.formData && flowItem.formData.ifNodeTitle">
-                        <span class="text-content">{{ flowItem.formData.ifNodeTitle }}</span>
+                </template>
+              </template>
+            </draggable>
+          </template>
+        </div>
+      </el-aside>
+      <el-main class="flow-container">
+        <div class="flow-layout">
+          <div class="flow-editor">
+            <div class="canvas-container"
+                 :style="canvasRoomCursorStyle"
+                 :class="{'show-grid':toggleGridLine}"
+                 @mousemove="handleCanvasMouseMove"
+                 @mousedown="handleCanvasMouseDown"
+                 :data-zoom="canvasDataRoom">
+              <div id="campaignCanvas" :style="canvasRoomScaleStyle" ref="campaignCanvas">
+                <template v-for="(flowItem,index) in flowList">
+                  <div class="node-content-wrap"
+                       :key="flowItem.uuid"
+                       @mousedown="handleFlowMoveDown"
+                       @mouseup="(event)=>{handleChangeFlowPosition(flowItem,event)}"
+                       :id="flowItem.uuid"
+                       @click.stop="(event)=>{handleEditFlowItem(flowItem,event)}"
+                       :style="{left:flowItem.left+'px',top:flowItem.top+'px'}">
+                    <div class="node-content">
+                      <draggable class="node-temp-small" :ref="flowItem.uuid"
+                                 :group="{name:'sortable', pull:false, put: true }">
+                      </draggable>
+                      <template v-if="flowItem.groupType === flowTypeConstant.action">
+                        <div class="flow-item node">
+                          <div class="step-img" :class="flowItem.className"></div>
+                          <div class="step-title">{{ flowItem.name }}</div>
+                        </div>
+                        <!--flow text-->
+                        <div class="flow-text">
+                          <div class="text-line">
+                            <span>{{ flowItem.formData && flowItem.formData.stepName }}</span>
+                            <i class="el-icon-close flow-delete"
+                               @click.stop="handleDeleteFlowItem(flowItem)"></i>
+                          </div>
+                        </div>
+                        <!--    -->
+                      </template>
+                      <template v-else-if="flowItem.groupType === flowTypeConstant.condition">
+                        <div class="flow-item node-square">
+                          <div class="square">
+                            <div class="step-img" :class="flowItem.className"></div>
+                          </div>
+                        </div>
+                        <div class="flow-text">
+                          <div class="text-line">
+                            <span>{{ flowItem.formData && flowItem.formData.stepName }}</span>
+                            <i class="el-icon-close flow-delete"
+                               @click.stop="handleDeleteFlowItem(flowItem)"></i>
+                          </div>
+                          <div class="text-line1">
+                            <template v-if="flowItem.formData && flowItem.formData.ifNodeTitle">
+                              <span class="text-content">{{ flowItem.formData.ifNodeTitle }}</span>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+                      <!-- flow -->
+                      <template v-else-if="flowItem.groupType === flowTypeConstant.flow">
+                        <div class="flow-item node node-circle">
+                          <div class="step-img" :class="flowItem.className"></div>
+                        </div>
+                        <div class="flow-text">
+                          <div class="text-line">
+                            <span>{{ flowItem.formData && flowItem.formData.stepName }}</span>
+                            <i class="el-icon-close flow-delete"
+                               v-if="flowItem.type !== flowItemTypeConstant.startNode"
+                               @click.stop="handleDeleteFlowItem(flowItem)"></i>
+                          </div>
+                        </div>
+                      </template>
+                      <!--  temp node -->
+                      <template v-if="flowItem.groupType === flowTypeConstant.temp ">
+                        <draggable class="flow-item node-temp node-temp-img"
+                                   ref="tempNode"
+                                   :id="flowItem.uuid"
+                                   :group="{name:'sortable', pull:false, put: true }">
+                        </draggable>
                       </template>
                     </div>
                   </div>
                 </template>
-                <!-- flow -->
-                <template v-else-if="flowItem.groupType === flowTypeConstant.flow">
-                  <div class="flow-item node node-circle">
-                    <div class="step-img" :class="flowItem.className"></div>
-                  </div>
-                  <div class="flow-text">
-                    <div class="text-line">
-                      <span>{{ flowItem.formData && flowItem.formData.stepName }}</span>
-                      <i class="el-icon-close flow-delete"
-                         v-if="flowItem.type !== flowItemTypeConstant.startNode"
-                         @click.stop="handleDeleteFlowItem(flowItem)"></i>
-                    </div>
-                  </div>
-                </template>
-                <!--  temp node -->
-                <template v-if="flowItem.groupType === flowTypeConstant.temp ">
-                  <draggable class="flow-item node-temp node-temp-img"
-                             ref="tempNode"
-                             :id="flowItem.uuid"
-                             :group="{name:'sortable', pull:false, put: true }">
-                  </draggable>
-                </template>
               </div>
             </div>
-          </template>
+          </div>
         </div>
-      </div>
-      <!-- sidebar-->
-      <div class="flow-editor-sidebar">
-        <template v-for="(flowItem,index) in flowAllList">
-          <draggable class="items-box"
-                     :key="index"
-                     :list="flowItem.children"
-                     :group="{name:'sortable', pull: 'clone', put: false }"
-                     v-bind="dragConfig"
-                     :move="handleFlowMoveItem"
-                     @start="handleFlowMoveStart"
-                     @end="handleFlowMoveEnd"
-                     :sort="false"
-                     :ref="flowItem.ref">
-            <template v-for="(item,index) in flowItem.children">
-              <template v-if="flowItem.type === flowTypeConstant.action">
-                <div class="node" :key="index" :title="item.name" :data-id="item.id"
-                     :data-type="item.type"
-                     :data-group="item.groupType"
-                     v-if="!item.hidden">
-                  <div class="step-img" :class="item.className"></div>
-                  <div class="step-title">{{ item.name }}</div>
-                </div>
-              </template>
-              <template v-else-if="flowItem.type === flowTypeConstant.flow">
-                <div class="node node-circle" :key="index" :title="item.name" :data-id="item.id"
-                     :data-type="item.type"
-                     :data-group="item.groupType"
-                     v-if="!item.hidden">
-                  <div class="step-img" :class="item.className"></div>
-                </div>
-              </template>
-              <template v-else-if="flowItem.type === flowTypeConstant.condition">
-                <div class="node-square" :key="index" :title="item.name" :data-id="item.id"
-                     :data-type="item.type"
-                     :data-group="item.groupType"
-                     v-if="!item.hidden">
-                  <div class="square">
-                    <div class="step-img" :class="item.className"></div>
-                  </div>
-                </div>
-              </template>
-            </template>
-          </draggable>
-        </template>
-      </div>
-    </div>
+      </el-main>
+    </el-container>
+
     <el-dialog
         class="dialog-wrap"
         :visible.sync="dialogObj.visible"
@@ -210,7 +186,8 @@
             <el-button type="primary" @click="dialogVisible = false">关 闭</el-button>
           </span>
     </el-dialog>
-  </div>
+  </el-container>
+
 </template>
 
 <script>
@@ -2034,6 +2011,8 @@ export default {
 }
 </script>
 
-<style lang="sass">
+<style lang="sass" scoped>
+
 @import "../styles/workflow.scss"
+
 </style>

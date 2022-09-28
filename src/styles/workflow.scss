@@ -2,6 +2,12 @@
 @import "jsplumbtoolkit-defaults";
 @import "step-imgs";
 
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+
 .flow-layout {
   display: flex;
   flex-direction: column;
@@ -19,6 +25,16 @@
 
 .flow-editor.draft {
   background: #fff;
+}
+
+
+.flow-node{
+  position: absolute;
+}
+
+.flow-container{
+  margin: 0;
+  padding: 0;
 }
 
 
@@ -211,7 +227,6 @@
 // 右侧的editor
 .flow-editor-sidebar {
   position: relative;
-  width: 287px;
   background-color: #616D74;
   color: #bababa;
   z-index: 1;
